@@ -1,9 +1,8 @@
-from operations import add_categories, add_products
+from operations import seed_data, read_data
 from models import Base
-from operations import engine
+from db import engine
 Base.metadata.create_all(engine)
 
-add_categories()
-add_products()
-
+seed_data()
+read_data()
 
