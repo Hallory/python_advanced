@@ -17,23 +17,18 @@ def driver():
     d.quit()
     
 
-def accept_cookie_if_present(driver) -> bool:
-    try:
-        btn = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, ".fc-cta-consent"))
-        )
-        btn.click()
-        WebDriverWait(driver, 10).until(EC.staleness_of(btn)) 
-        return True
-    except Exception:
-        return False
+def set_cookie_consent(driver):
 
+    driver.execute_script("""
+    let banner = document.querySelector('.fc-consent-root');
+    if (banner) banner.remove();
+    """)
 
 def test_drag_and_drop(driver):
     wait = WebDriverWait(driver, 10)
     driver.get(URL)
+    set_cookie_consent(driver)
 
-    accept_cookie_if_present(driver)
 
     frame = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "iframe.demo-frame")))
     driver.switch_to.frame(frame)
