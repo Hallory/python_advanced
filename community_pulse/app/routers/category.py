@@ -6,6 +6,8 @@ from app.schemas.category import CategoryResponse, CategoryCreateRequest
 from app.models.category import Category
 from app.extensions import db
 
+
+
 categories_bp = Blueprint(
     "categories",
     __name__,
@@ -78,4 +80,4 @@ def delete_one_category(category_id: int):
     db.session.delete(category)
     db.session.commit()
 
-    return jsonify({"message": f"Category with ID {category_id} deleted successfully"}), 204
+    return "", 204
