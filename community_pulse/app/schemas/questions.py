@@ -1,14 +1,9 @@
-from pydantic import BaseModel, Field, model_validator, ConfigDict
+from pydantic import Field, model_validator
 from datetime import datetime
+from app.schemas.category import CategoryBase
+from app.schemas.base_schema import BaseSchema
 
-class BaseSchema(BaseModel):
-    model_config = ConfigDict(
-        from_attributes=True,
-        str_strip_whitespace=True,
-        extra="forbid"
-        
-    )
-    
+
 class QuestionBase(BaseSchema):
     title: str = Field(...,min_length=15, max_length=150)
     description: str | None = Field(default=None, min_length=20, max_length=750)
@@ -26,7 +21,6 @@ class QuestionBase(BaseSchema):
 
 class QuestionCreateRequest(QuestionBase):
     ...
-    
 
 class QuestionUpdateRequest(BaseSchema):
     title: str | None = Field(default=None, min_length=15, max_length=150)
@@ -35,6 +29,8 @@ class QuestionUpdateRequest(BaseSchema):
     end_date: datetime | None = Field(default=None)
     is_active: bool | None = Field(default=None)
     
+    category_id: int | None = None
+
     @model_validator(mode="after")
     def validate_dates(self):
         if self.start_date is not None and self.end_date is not None:
@@ -43,9 +39,16 @@ class QuestionUpdateRequest(BaseSchema):
         return self
     
 
-class QuestionRetrieve(QuestionBase):
+class QuestionRetrieve(BaseSchema):
     id: int
+    title: str
+    description: str | None
     is_active: bool
+    category: CategoryBase | None
+    end_date: datetime
+    start_date: datetime
+    
+    
     
     
 class QuestionList(BaseSchema):
@@ -53,6 +56,7 @@ class QuestionList(BaseSchema):
     title: str
     start_date: datetime
     is_active: bool
+    category: CategoryBase | None
     
     
 class QuestionCreateResponse(QuestionRetrieve):
