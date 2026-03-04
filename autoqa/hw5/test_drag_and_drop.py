@@ -17,17 +17,23 @@ def driver():
     d.quit()
     
 
-def set_cookie_consent(driver):
-
+def dismiss_cookie_banner(driver):
     driver.execute_script("""
-    let banner = document.querySelector('.fc-consent-root');
-    if (banner) banner.remove();
+        const banner = document.querySelector('.fc-consent-root');
+        if (banner) banner.remove();
+
+        const backdrop = document.querySelector('.fc-dialog-overlay, .fc-overlay, .fc-backdrop');
+        if (backdrop) backdrop.remove();
+
+        document.documentElement.style.overflow = 'auto';
+        document.body.style.overflow = 'auto';
     """)
 
 def test_drag_and_drop(driver):
     wait = WebDriverWait(driver, 10)
     driver.get(URL)
-    set_cookie_consent(driver)
+
+    dismiss_cookie_banner(driver)
 
 
     frame = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "iframe.demo-frame")))
