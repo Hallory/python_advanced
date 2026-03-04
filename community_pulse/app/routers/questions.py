@@ -4,6 +4,8 @@ from app.schemas.questions import QuestionCreateRequest, QuestionList, QuestionC
 from app.models.questions import Question
 from app.extensions import db
 from pydantic import ValidationError
+from sqlalchemy.orm import selectinload
+from app.models.category import Category
 from flask import jsonify
 questions_bp = Blueprint(
     "questions",
@@ -21,8 +23,8 @@ questions_bp = Blueprint(
 def get_all_questions():
     # TODO-LIST:
     # 1. Сдкелть запрос на получения всех оъектов из базы
-    stmt = select(Question)
-    result = db.session.execute(stmt).scalars()
+    stmt = select(Question).options(selectinload(Question.category))
+    result = db.session.execute(stmt).scalars().all()
 
     # 2. Как-то преобразовать сложный объект ORM в простой словарик python
     response = [
@@ -44,7 +46,7 @@ def get_all_questions():
 @questions_bp.route("/<int:question_id>")
 def get_question_by_id(question_id: int):
     # 1. Получить один объект
-    stmt = select(Question).where(Question.id == question_id)
+    stmt = select(Question).options(selectinload(Question.category)).where(Question.id == question_id)
     question = db.session.execute(stmt).scalars().one_or_none()
 
     # 2. Проверить, что объект есть в БД
@@ -65,12 +67,12 @@ def create_new_question():
     raw_data = request.get_json(silent=True)
 
     # 2. Провести проверки, что данные есть, они валидны, все требуемые колонки указаны
-    if not raw_data:
+    if raw_data is None:
         return jsonify(
             {
                 "error": "Request body is missing or not valid JSON"
             }
-        ), 400  # 400 BAD REQUEST
+        ), 400 # 400 BAD REQUEST
 
     try:
         validated_data = QuestionCreateRequest.model_validate(raw_data)
@@ -79,8 +81,15 @@ def create_new_question():
             {
                 "error": e.errors()
             }
-        ), 400
+        ),422
+    category = db.session.get(Category, validated_data.category_id)
 
+    if not category:
+        return jsonify(
+            {
+                "error": f"Category with ID {validated_data.category_id} not found"
+            }
+        ), 404
     try:
         # 3. Попытаться создать новый объект
         new_question = Question(**validated_data.model_dump())
@@ -103,50 +112,6 @@ def create_new_question():
     return jsonify(QuestionCreateResponse.model_validate(new_question).model_dump()), 201  # 201 CREATED
 
 
-# Update
-@questions_bp.route("/<int:question_id>/update", methods=["PUT", "PATCH"])
-def update_question_by_id(question_id: int):
-    # 1. Попытаться Получить сырые данные
-    raw_data = request.get_json(silent=True)
-
-    # 2. Провести проверки, что данные есть, они валидны, все требуемые колонки указаны
-    if not raw_data:
-        return jsonify(
-            {
-                "error": "Request body is missing or not valid JSON"
-            }
-        ), 400  # 400 BAD REQUEST
-
-    try:
-        validated_data = QuestionUpdateRequest.model_validate(raw_data)
-    except ValidationError as e:
-        return jsonify(
-            {
-                "error": e.errors()
-            }
-        ), 400
-
-    stmt = select(Question).where(Question.id == question_id)
-    question = db.session.execute(stmt).scalars().one_or_none()
-
-    if not question:
-        return jsonify({"error": f"Question with ID {question_id} not found"})
-
-    try:
-        for key, value in validated_data.model_dump().items():
-            setattr(question, key, value)
-
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            "error": f"Failed to update question with ID {question_id}",
-            "detail": str(e)
-        }), 500  # 500 INTERNAL SERVER ERROR
-
-    return jsonify(QuestionRetrieve.model_validate(question).model_dump()), 200
-
-
 # Delete
 @questions_bp.route("/<int:question_id>/delete", methods=["DELETE"])
 def delete_question_by_id(question_id: int):
@@ -154,7 +119,7 @@ def delete_question_by_id(question_id: int):
     question = db.session.execute(stmt).scalars().one_or_none()
 
     if not question:
-        return jsonify({"error": f"Question with ID {question_id} not found"})
+        return jsonify({"error": f"Question with ID {question_id} not found"}), 404
 
     try:
         db.session.delete(question)
@@ -167,4 +132,48 @@ def delete_question_by_id(question_id: int):
             "detail": str(e)
         }), 500
 
-    return jsonify({"message": f"Question with ID {question_id} deleted successfully"}), 204  # 204 NO CONTENT
+    return "", 204  # 204 NO CONTENT
+   
+
+# Update
+
+@questions_bp.route("/<int:question_id>/update", methods=["PUT", "PATCH"])
+def update_question_by_id(question_id: int):
+    raw_data = request.get_json(silent=True)
+    if raw_data is None:
+        return jsonify({"error": "Request body is missing or not valid JSON"}), 422
+
+    try:
+        validated_data = QuestionUpdateRequest.model_validate(raw_data)
+    except ValidationError as e:
+        return jsonify({"error": e.errors()}), 400
+
+    stmt = select(Question).where(Question.id == question_id)
+    question = db.session.execute(stmt).scalars().one_or_none()
+
+    if not question:
+        return jsonify({"error": f"Question with ID {question_id} not found"}), 404
+
+    data = validated_data.model_dump(exclude_unset=True)
+
+    if "category_id" in data:
+        category = db.session.get(Category, data["category_id"])
+        if category is None:
+            return jsonify({"error": f"Category with ID {data['category_id']} not found"}), 404
+
+    try:
+        for key, value in data.items():
+            setattr(question, key, value)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Failed to update question with ID {question_id}", "detail": str(e)}), 500
+
+    stmt = (
+        select(Question)
+        .options(selectinload(Question.category))
+        .where(Question.id == question_id)
+    )
+    question = db.session.execute(stmt).scalars().one()
+
+    return jsonify(QuestionRetrieve.model_validate(question).model_dump()), 200
