@@ -71,3 +71,24 @@ def test_itcareerhub(driver):
     )
     
     assert "Хотите записаться на курс и получить помощь по вопросам обучения?" in call_text.text
+    
+    
+    
+def test_call(driver):
+    wait = WebDriverWait(driver, 20)
+
+    driver.get("https://itcareerhub.de/ru/contact-us")
+
+    call_button = wait.until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, 'a.tn-atom[href="#popup:form-tr"]'))
+    )
+    driver.execute_script("arguments[0].click();", call_button)
+
+    expected_text = "Свяжемся с вами в течение 15 минут, чтобы назначить время консультации"
+
+    popup_text = wait.until(
+        EC.visibility_of_element_located((By.CLASS_NAME,"tn-group__1862496483175871291755985340"
+                                          ))
+    )
+
+    assert expected_text in popup_text.text
