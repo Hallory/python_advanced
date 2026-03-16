@@ -2,13 +2,19 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
-driver = webdriver.Firefox()
-wait = WebDriverWait(driver, 15)
-
-try:
-    driver.get("https://itcareerhub.de/ru")
+import pytest
+@pytest.fixture
+def driver():
+    driver = webdriver.Firefox()
     driver.maximize_window()
+    yield driver
+    driver.quit()
+
+
+def test_payment_screenshot(driver):
+    wait = WebDriverWait(driver, 15)
+
+    driver.get("https://itcareerhub.de/ru")
 
     payment_section = wait.until(
         EC.presence_of_element_located(
@@ -21,6 +27,3 @@ try:
     )
 
     payment_section.screenshot("payment_methods.png")
-
-finally:
-    driver.quit()
